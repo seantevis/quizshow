@@ -1,6 +1,6 @@
 "use server"
 
-import { put, get, del, list } from "@vercel/blob"
+import { put, del, list } from "@vercel/blob"
 import { revalidatePath } from "next/cache"
 import type { Category, FinalJeopardy } from "@/data/game-data"
 
@@ -138,26 +138,19 @@ function csvToFinalJeopardy(csv: string): FinalJeopardy | null {
   }
 }
 
-// Check if a blob exists
-async function blobExists(pathname: string): Promise<boolean> {
-  try {
-    const { blobs } = await list({ prefix: pathname })
-    return blobs.some(blob => blob.pathname === pathname)
-  } catch {
-    return false
-  }
-}
-
 // Read CSV from blob storage
 async function readCSVFromBlob(pathname: string): Promise<string | null> {
   try {
-    const exists = await blobExists(pathname)
-    if (!exists) return null
+    const { blobs } = await list({ prefix: pathname })
+    const blob = blobs.find(b => b.pathname === pathname)
     
-    const result = await get(pathname, { access: "private" })
-    if (!result) return null
+    if (!blob) return null
     
-    const text = await new Response(result.stream).text()
+    // For public blobs, fetch directly from the URL
+    const response = await fetch(blob.url)
+    if (!response.ok) return null
+    
+    const text = await response.text()
     return text
   } catch (error) {
     console.error(`Error reading CSV from ${pathname}:`, error)
@@ -169,19 +162,17 @@ async function readCSVFromBlob(pathname: string): Promise<string | null> {
 async function writeCSVToBlob(pathname: string, content: string): Promise<boolean> {
   try {
     // Delete existing blob if it exists
-    const exists = await blobExists(pathname)
-    if (exists) {
-      const { blobs } = await list({ prefix: pathname })
-      const blob = blobs.find(b => b.pathname === pathname)
-      if (blob) {
-        await del(blob.url)
-      }
+    const { blobs } = await list({ prefix: pathname })
+    const existingBlob = blobs.find(b => b.pathname === pathname)
+    if (existingBlob) {
+      await del(existingBlob.url)
     }
     
-    // Write new content
+    // Write new content with public access
     await put(pathname, content, {
-      access: "private",
-      contentType: "text/csv"
+      access: "public",
+      contentType: "text/csv",
+      addRandomSuffix: false
     })
     
     return true
