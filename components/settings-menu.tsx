@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input"
 import {
   Menu,
   X,
-  Volume2,
-  VolumeX,
   FileEdit,
   Trash2,
   Edit2,
@@ -19,7 +17,6 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import PlayerManagement, { type Player } from "./player-management"
-import { useSound } from "@/contexts/sound-context"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -70,7 +67,7 @@ export default function SettingsMenu({
   const [tempUseImageAsTitle, setTempUseImageAsTitle] = useState(useImageAsTitle)
   const [tempHideGameTitle, setTempHideGameTitle] = useState(hideGameTitle)
   const [imagePreviewError, setImagePreviewError] = useState(false)
-  const { muted, toggleMute } = useSound()
+
   const router = useRouter()
   const [showImportExport, setShowImportExport] = useState(false)
 
@@ -360,22 +357,6 @@ export default function SettingsMenu({
                     )}
                   </div>
                 )}
-              </div>
-
-              <div className="flex items-center justify-between bg-[#005AF2] p-4 rounded-lg">
-                <div className="flex items-center gap-3">
-                  {muted ? <VolumeX size={24} className="text-white" /> : <Volume2 size={24} className="text-white" />}
-                  <span className="text-white font-medium">Sound Effects</span>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={toggleMute}
-                  className={`${
-                    muted ? "bg-gray-600" : "bg-green-600"
-                  } text-white border-none hover:bg-opacity-90 hover:text-white`}
-                >
-                  {muted ? "Unmute" : "Mute"}
-                </Button>
               </div>
 
               <Link href="/editor" className="block">
