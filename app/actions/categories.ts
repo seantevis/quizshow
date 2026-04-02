@@ -1,17 +1,34 @@
 "use server"
 
-import { kv } from "@vercel/kv"
+import { createClient } from "@vercel/kv"
 import { revalidatePath } from "next/cache"
 import type { Category, FinalJeopardy } from "@/data/game-data"
 
+// Create KV client with error handling
+function getKVClient() {
+  const url = process.env.KV_REST_API_URL
+  const token = process.env.KV_REST_API_TOKEN
+
+  if (!url || !token) {
+    return null
+  }
+
+  return createClient({
+    url,
+    token,
+  })
+}
+
 export async function clearAllData() {
+  const kv = getKVClient()
+  if (!kv) {
+    return { success: false, error: "KV not configured" }
+  }
+
   try {
-    // Clear all possible keys that might contain corrupted data
     await Promise.all([
       kv.del("custom-categories"),
       kv.del("final-jeopardy"),
-      kv.del("games"), // Clear saved games too if needed
-      kv.del("games-by-date"),
     ])
 
     revalidatePath("/editor")
@@ -24,8 +41,12 @@ export async function clearAllData() {
 }
 
 export async function saveCategories(categories: Category[], finalJeopardy: FinalJeopardy) {
+  const kv = getKVClient()
+  if (!kv) {
+    return { success: false, error: "KV not configured" }
+  }
+
   try {
-    // Validate input data before saving
     if (!Array.isArray(categories) || categories.length === 0) {
       return { success: false, error: "Invalid categories data" }
     }
@@ -34,7 +55,6 @@ export async function saveCategories(categories: Category[], finalJeopardy: Fina
       return { success: false, error: "Invalid final jeopardy data" }
     }
 
-    // Save the data with explicit JSON serialization
     await kv.set("custom-categories", JSON.stringify(categories))
     await kv.set("final-jeopardy", JSON.stringify(finalJeopardy))
 
@@ -48,8 +68,13 @@ export async function saveCategories(categories: Category[], finalJeopardy: Fina
 }
 
 export async function getCategories(): Promise<Category[] | null> {
+  const kv = getKVClient()
+  if (!kv) {
+    // KV not configured, return null to use default data
+    return null
+  }
+
   try {
-    // Get raw data first
     const rawData = await kv.get("custom-categories")
 
     if (!rawData) {
@@ -58,27 +83,20 @@ export async function getCategories(): Promise<Category[] | null> {
 
     let categories: Category[]
 
-    // Handle both string and object data
     if (typeof rawData === "string") {
       try {
         categories = JSON.parse(rawData)
-      } catch (parseError) {
-        console.error("JSON parse error for categories:", parseError)
-        // Clear corrupted data
-        await kv.del("custom-categories")
+      } catch {
+        // Invalid JSON, just return null without trying to clear
         return null
       }
     } else if (Array.isArray(rawData)) {
       categories = rawData
     } else {
-      console.error("Unexpected data type for categories:", typeof rawData)
-      await kv.del("custom-categories")
       return null
     }
 
-    // Validate that the data is an array and has the expected structure
     if (Array.isArray(categories) && categories.length > 0) {
-      // Basic validation to ensure each category has the required properties
       const isValid = categories.every(
         (cat) =>
           cat &&
@@ -91,32 +109,25 @@ export async function getCategories(): Promise<Category[] | null> {
 
       if (isValid) {
         return categories
-      } else {
-        console.warn("Invalid category data structure found, clearing corrupted data")
-        await kv.del("custom-categories")
-        return null
       }
     }
 
     return null
   } catch (error) {
+    // Just log and return null - don't try to clear data in error handler
     console.error("Error getting categories:", error)
-
-    // Clear corrupted data on any error
-    try {
-      await kv.del("custom-categories")
-      console.log("Cleared corrupted category data")
-    } catch (clearError) {
-      console.error("Error clearing corrupted data:", clearError)
-    }
-
     return null
   }
 }
 
 export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
+  const kv = getKVClient()
+  if (!kv) {
+    // KV not configured, return null to use default data
+    return null
+  }
+
   try {
-    // Get raw data first
     const rawData = await kv.get("final-jeopardy")
 
     if (!rawData) {
@@ -125,25 +136,19 @@ export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
 
     let finalJeopardy: FinalJeopardy
 
-    // Handle both string and object data
     if (typeof rawData === "string") {
       try {
         finalJeopardy = JSON.parse(rawData)
-      } catch (parseError) {
-        console.error("JSON parse error for final jeopardy:", parseError)
-        // Clear corrupted data
-        await kv.del("final-jeopardy")
+      } catch {
+        // Invalid JSON, just return null
         return null
       }
     } else if (typeof rawData === "object" && rawData !== null) {
       finalJeopardy = rawData as FinalJeopardy
     } else {
-      console.error("Unexpected data type for final jeopardy:", typeof rawData)
-      await kv.del("final-jeopardy")
       return null
     }
 
-    // Validate that the data has the expected structure
     if (
       finalJeopardy &&
       typeof finalJeopardy.category === "string" &&
@@ -153,28 +158,21 @@ export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
       return finalJeopardy
     }
 
-    // Clear invalid data
-    await kv.del("final-jeopardy")
     return null
   } catch (error) {
+    // Just log and return null - don't try to clear data in error handler
     console.error("Error getting final jeopardy:", error)
-
-    // Clear corrupted data on any error
-    try {
-      await kv.del("final-jeopardy")
-      console.log("Cleared corrupted final jeopardy data")
-    } catch (clearError) {
-      console.error("Error clearing corrupted data:", clearError)
-    }
-
     return null
   }
 }
 
-// Emergency function to clear all KV data
 export async function emergencyClearAll() {
+  const kv = getKVClient()
+  if (!kv) {
+    return { success: false, error: "KV not configured" }
+  }
+
   try {
-    // Get all keys and delete them
     const keys = await kv.keys("*")
     if (keys.length > 0) {
       await Promise.all(keys.map((key) => kv.del(key)))
