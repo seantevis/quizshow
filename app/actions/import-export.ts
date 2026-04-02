@@ -1,14 +1,9 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { Redis } from "@upstash/redis"
+import { kv } from "@vercel/kv"
 import { csvToCategories, validateCSV } from "@/utils/csv-utils"
 import type { Category, FinalJeopardy } from "@/data/game-data"
-
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
 
 export async function importCategoriesFromCSV(csvContent: string) {
   try {
@@ -21,12 +16,12 @@ export async function importCategoriesFromCSV(csvContent: string) {
     // Convert CSV to categories and final jeopardy
     const { categories, finalJeopardy } = csvToCategories(csvContent)
 
-    // Save to Redis store
-    await redis.set("custom-categories", JSON.stringify(categories))
+    // Save to KV store
+    await kv.set("custom-categories", categories)
 
     // Save final jeopardy if provided
     if (finalJeopardy) {
-      await redis.set("final-jeopardy", JSON.stringify(finalJeopardy))
+      await kv.set("final-jeopardy", finalJeopardy)
     }
 
     // Revalidate paths
@@ -49,19 +44,8 @@ export async function getExportableCategories(): Promise<{
 }> {
   try {
     // Try to get custom categories first
-    const rawCategories = await redis.get("custom-categories")
-    const rawFinalJeopardy = await redis.get("final-jeopardy")
-
-    // Parse the data (handle both string and object formats)
-    let customCategories: Category[] | null = null
-    let customFinalJeopardy: FinalJeopardy | null = null
-
-    if (rawCategories) {
-      customCategories = typeof rawCategories === "string" ? JSON.parse(rawCategories) : rawCategories as Category[]
-    }
-    if (rawFinalJeopardy) {
-      customFinalJeopardy = typeof rawFinalJeopardy === "string" ? JSON.parse(rawFinalJeopardy) : rawFinalJeopardy as FinalJeopardy
-    }
+    const customCategories = await kv.get<Category[]>("custom-categories")
+    const customFinalJeopardy = await kv.get<FinalJeopardy>("final-jeopardy")
 
     if (customCategories && customCategories.length > 0) {
       return { categories: customCategories, finalJeopardy: customFinalJeopardy || undefined }
