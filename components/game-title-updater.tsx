@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 
 interface GameTitleUpdaterProps {
   gameName: string
@@ -15,33 +15,38 @@ export default function GameTitleUpdater({
   useImageAsTitle,
   hideGameTitle,
 }: GameTitleUpdaterProps) {
-  const [imageError, setImageError] = useState(false)
-
   useEffect(() => {
-    // Reset image error when image URL changes
-    setImageError(false)
-  }, [gameTitleImage])
+    // Update the game title in the DOM
+    const titleContainer = document.getElementById("game-title")
+    if (!titleContainer) return
 
-  if (hideGameTitle) {
-    return null
-  }
+    if (hideGameTitle) {
+      // Hide the title completely
+      titleContainer.innerHTML = ""
+      titleContainer.style.display = "none"
+    } else {
+      // Show the title container
+      titleContainer.style.display = "block"
 
-  if (useImageAsTitle && gameTitleImage && !imageError) {
-    return (
-      <div className="relative w-full h-24 md:h-32">
-        <img
-          src={gameTitleImage}
-          alt={gameName}
-          className="object-contain w-auto h-full object-left"
-          onError={() => setImageError(true)}
-        />
-      </div>
-    )
-  }
+      if (useImageAsTitle && gameTitleImage) {
+        // Create image element
+        titleContainer.innerHTML = `
+          <div class="relative w-full h-24 md:h-32">
+            <img 
+              src="${gameTitleImage}" 
+              alt="${gameName}" 
+              class="object-contain w-auto h-full object-left"
+              onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<h1 class=\'text-4xl md:text-5xl font-bold text-[#f8d64e] tracking-wider\'>${gameName}</h1>';"
+            />
+          </div>
+        `
+      } else {
+        // Use text title
+        titleContainer.innerHTML = `<h1 class="text-4xl md:text-5xl font-bold text-[#f8d64e] tracking-wider">${gameName}</h1>`
+      }
+    }
+  }, [gameName, gameTitleImage, useImageAsTitle, hideGameTitle])
 
-  return (
-    <h1 className="text-4xl md:text-5xl font-bold text-[#f8d64e] tracking-wider">
-      {gameName}
-    </h1>
-  )
+  // This component doesn't render anything
+  return null
 }

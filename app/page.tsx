@@ -28,6 +28,10 @@ export default async function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-4 bg-[#00236A]">
       <div className="w-full max-w-7xl mx-auto flex flex-col items-center">
+        <div id="game-title" className="my-8 text-left w-full">
+          {/* Game title will be dynamically updated by client-side JavaScript */}
+          <h1 className="text-4xl md:text-5xl font-bold text-[#f8d64e] tracking-wider">Questions!</h1>
+        </div>
         <GameBoard
           customCategories={customCategories || undefined}
           customFinalJeopardy={customFinalJeopardy || undefined}

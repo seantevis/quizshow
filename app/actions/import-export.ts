@@ -21,12 +21,12 @@ export async function importCategoriesFromCSV(csvContent: string) {
     // Convert CSV to categories and final jeopardy
     const { categories, finalJeopardy } = csvToCategories(csvContent)
 
-    // Save to KV store
-    await redis.set("custom-categories", categories)
+    // Save to Redis store
+    await redis.set("custom-categories", JSON.stringify(categories))
 
     // Save final jeopardy if provided
     if (finalJeopardy) {
-      await redis.set("final-jeopardy", finalJeopardy)
+      await redis.set("final-jeopardy", JSON.stringify(finalJeopardy))
     }
 
     // Revalidate paths
@@ -49,8 +49,19 @@ export async function getExportableCategories(): Promise<{
 }> {
   try {
     // Try to get custom categories first
-    const customCategories = await redis.get<Category[]>("custom-categories")
-    const customFinalJeopardy = await redis.get<FinalJeopardy>("final-jeopardy")
+    const rawCategories = await redis.get("custom-categories")
+    const rawFinalJeopardy = await redis.get("final-jeopardy")
+
+    // Parse the data (handle both string and object formats)
+    let customCategories: Category[] | null = null
+    let customFinalJeopardy: FinalJeopardy | null = null
+
+    if (rawCategories) {
+      customCategories = typeof rawCategories === "string" ? JSON.parse(rawCategories) : rawCategories as Category[]
+    }
+    if (rawFinalJeopardy) {
+      customFinalJeopardy = typeof rawFinalJeopardy === "string" ? JSON.parse(rawFinalJeopardy) : rawFinalJeopardy as FinalJeopardy
+    }
 
     if (customCategories && customCategories.length > 0) {
       return { categories: customCategories, finalJeopardy: customFinalJeopardy || undefined }

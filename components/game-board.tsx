@@ -214,6 +214,13 @@ export default function GameBoard({
 
   return (
     <>
+      <GameTitleUpdater
+        gameName={gameName}
+        gameTitleImage={gameTitleImage}
+        useImageAsTitle={useImageAsTitle}
+        hideGameTitle={hideGameTitle}
+      />
+
       <SettingsMenu
         players={players}
         setPlayers={setPlayers}
@@ -233,15 +240,8 @@ export default function GameBoard({
       />
 
       {/* Header row with game title and player scoreboard */}
-      <div className="w-full max-w-7xl flex flex-col md:flex-row justify-between items-center my-8 gap-4">
-        <div className="flex-1 text-center md:text-left">
-          <GameTitleUpdater
-            gameName={gameName}
-            gameTitleImage={gameTitleImage}
-            useImageAsTitle={useImageAsTitle}
-            hideGameTitle={hideGameTitle}
-          />
-        </div>
+      <div className="w-full max-w-7xl flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div className="flex-1 text-center md:text-left">{/* Game title is rendered here by GameTitleUpdater */}</div>
         <PlayerScoreboard players={players} activePlayer={activePlayer} setActivePlayer={setActivePlayer} />
       </div>
 
