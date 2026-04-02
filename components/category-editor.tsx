@@ -153,17 +153,23 @@ export default function CategoryEditor({ initialCategories, initialFinalJeopardy
     setIsLoading(true)
     setSaveStatus({ message: "Saving...", isError: false })
 
+    console.log("[v0] Saving categories:", JSON.stringify(categories, null, 2))
+    console.log("[v0] Saving finalJeopardy:", JSON.stringify(finalJeopardy, null, 2))
+
     try {
       const result = await saveCategories(categories, finalJeopardy)
+      console.log("[v0] Save result:", result)
 
       if (result.success) {
         setSaveStatus({ message: "Categories saved successfully!", isError: false })
         router.refresh()
       } else {
-        setSaveStatus({ message: "Failed to save categories", isError: true })
+        console.log("[v0] Save failed with error:", result.error)
+        setSaveStatus({ message: result.error || "Failed to save categories", isError: true })
       }
     } catch (error) {
-      setSaveStatus({ message: "An error occurred while saving", isError: true })
+      console.log("[v0] Save exception:", error)
+      setSaveStatus({ message: "An error occurred while saving: " + (error instanceof Error ? error.message : String(error)), isError: true })
     }
 
     setIsLoading(false)

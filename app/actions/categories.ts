@@ -24,26 +24,40 @@ export async function clearAllData() {
 }
 
 export async function saveCategories(categories: Category[], finalJeopardy: FinalJeopardy) {
+  console.log("[v0] saveCategories called with", categories?.length, "categories")
+  console.log("[v0] finalJeopardy:", finalJeopardy)
+  
   try {
     // Validate input data before saving
     if (!Array.isArray(categories) || categories.length === 0) {
+      console.log("[v0] Invalid categories data - not an array or empty")
       return { success: false, error: "Invalid categories data" }
     }
 
     if (!finalJeopardy || !finalJeopardy.category || !finalJeopardy.question || !finalJeopardy.answer) {
+      console.log("[v0] Invalid final jeopardy data", { 
+        hasFJ: !!finalJeopardy, 
+        hasCategory: finalJeopardy?.category, 
+        hasQuestion: finalJeopardy?.question, 
+        hasAnswer: finalJeopardy?.answer 
+      })
       return { success: false, error: "Invalid final jeopardy data" }
     }
 
     // Save the data with explicit JSON serialization
+    console.log("[v0] Saving to KV store...")
     await kv.set("custom-categories", JSON.stringify(categories))
+    console.log("[v0] Saved custom-categories")
     await kv.set("final-jeopardy", JSON.stringify(finalJeopardy))
+    console.log("[v0] Saved final-jeopardy")
 
     revalidatePath("/editor")
     revalidatePath("/")
+    console.log("[v0] Save successful!")
     return { success: true }
   } catch (error) {
-    console.error("Error saving categories:", error)
-    return { success: false, error: "Failed to save categories" }
+    console.error("[v0] Error saving categories:", error)
+    return { success: false, error: "Failed to save categories: " + (error instanceof Error ? error.message : String(error)) }
   }
 }
 
