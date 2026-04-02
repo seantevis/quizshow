@@ -4,9 +4,11 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
 export default async function EditorPage() {
-  // Get existing custom categories or use default ones
-  const existingCategories = await getCategories()
-  const existingFinalJeopardy = await getFinalJeopardy()
+  // Get existing custom categories or use default ones - fetch in parallel for speed
+  const [existingCategories, existingFinalJeopardy] = await Promise.all([
+    getCategories(),
+    getFinalJeopardy(),
+  ])
 
   return (
     <main className="flex min-h-screen flex-col items-center p-4 bg-[#00236A]">
