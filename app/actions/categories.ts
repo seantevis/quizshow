@@ -34,9 +34,9 @@ export async function saveCategories(categories: Category[], finalJeopardy: Fina
       return { success: false, error: "Invalid final jeopardy data" }
     }
 
-    // Save the data with explicit JSON serialization
-    await kv.set("custom-categories", JSON.stringify(categories))
-    await kv.set("final-jeopardy", JSON.stringify(finalJeopardy))
+    // Save the data - @vercel/kv handles JSON serialization automatically
+    await kv.set("custom-categories", categories)
+    await kv.set("final-jeopardy", finalJeopardy)
 
     revalidatePath("/editor")
     revalidatePath("/")
@@ -49,103 +49,48 @@ export async function saveCategories(categories: Category[], finalJeopardy: Fina
 
 export async function getCategories(): Promise<Category[] | null> {
   try {
-    // Get raw data first
-    const rawData = await kv.get("custom-categories")
+    // @vercel/kv automatically handles JSON deserialization
+    const categories = await kv.get<Category[]>("custom-categories")
 
-    if (!rawData) {
+    if (!categories || !Array.isArray(categories) || categories.length === 0) {
       return null
     }
 
-    let categories: Category[]
+    // Basic validation to ensure each category has the required properties
+    const isValid = categories.every(
+      (cat) =>
+        cat &&
+        typeof cat.category === "string" &&
+        Array.isArray(cat.questions) &&
+        cat.questions.every(
+          (q) => q && typeof q.question === "string" && typeof q.answer === "string" && typeof q.value === "number",
+        ),
+    )
 
-    // Handle both string and object data
-    if (typeof rawData === "string") {
-      try {
-        categories = JSON.parse(rawData)
-      } catch (parseError) {
-        console.error("JSON parse error for categories:", parseError)
-        // Clear corrupted data
-        await kv.del("custom-categories")
-        return null
-      }
-    } else if (Array.isArray(rawData)) {
-      categories = rawData
+    if (isValid) {
+      return categories
     } else {
-      console.error("Unexpected data type for categories:", typeof rawData)
+      console.warn("Invalid category data structure found, clearing corrupted data")
       await kv.del("custom-categories")
       return null
     }
-
-    // Validate that the data is an array and has the expected structure
-    if (Array.isArray(categories) && categories.length > 0) {
-      // Basic validation to ensure each category has the required properties
-      const isValid = categories.every(
-        (cat) =>
-          cat &&
-          typeof cat.category === "string" &&
-          Array.isArray(cat.questions) &&
-          cat.questions.every(
-            (q) => q && typeof q.question === "string" && typeof q.answer === "string" && typeof q.value === "number",
-          ),
-      )
-
-      if (isValid) {
-        return categories
-      } else {
-        console.warn("Invalid category data structure found, clearing corrupted data")
-        await kv.del("custom-categories")
-        return null
-      }
-    }
-
-    return null
   } catch (error) {
     console.error("Error getting categories:", error)
-
-    // Clear corrupted data on any error
-    try {
-      await kv.del("custom-categories")
-      console.log("Cleared corrupted category data")
-    } catch (clearError) {
-      console.error("Error clearing corrupted data:", clearError)
-    }
-
     return null
   }
 }
 
 export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
   try {
-    // Get raw data first
-    const rawData = await kv.get("final-jeopardy")
+    // @vercel/kv automatically handles JSON deserialization
+    const finalJeopardy = await kv.get<FinalJeopardy>("final-jeopardy")
 
-    if (!rawData) {
-      return null
-    }
-
-    let finalJeopardy: FinalJeopardy
-
-    // Handle both string and object data
-    if (typeof rawData === "string") {
-      try {
-        finalJeopardy = JSON.parse(rawData)
-      } catch (parseError) {
-        console.error("JSON parse error for final jeopardy:", parseError)
-        // Clear corrupted data
-        await kv.del("final-jeopardy")
-        return null
-      }
-    } else if (typeof rawData === "object" && rawData !== null) {
-      finalJeopardy = rawData as FinalJeopardy
-    } else {
-      console.error("Unexpected data type for final jeopardy:", typeof rawData)
-      await kv.del("final-jeopardy")
+    if (!finalJeopardy) {
       return null
     }
 
     // Validate that the data has the expected structure
     if (
-      finalJeopardy &&
       typeof finalJeopardy.category === "string" &&
       typeof finalJeopardy.question === "string" &&
       typeof finalJeopardy.answer === "string"
@@ -158,15 +103,6 @@ export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
     return null
   } catch (error) {
     console.error("Error getting final jeopardy:", error)
-
-    // Clear corrupted data on any error
-    try {
-      await kv.del("final-jeopardy")
-      console.log("Cleared corrupted final jeopardy data")
-    } catch (clearError) {
-      console.error("Error clearing corrupted data:", clearError)
-    }
-
     return null
   }
 }
