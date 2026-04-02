@@ -55,7 +55,7 @@ export async function saveCategories(categories: Category[], finalJeopardy: Fina
 export async function getCategories(): Promise<Category[] | null> {
   try {
     // Get raw data first
-    const rawData = await kv.get("custom-categories")
+    const rawData = await redis.get("custom-categories")
 
     if (!rawData) {
       return null
@@ -70,14 +70,14 @@ export async function getCategories(): Promise<Category[] | null> {
       } catch (parseError) {
         console.error("JSON parse error for categories:", parseError)
         // Clear corrupted data
-        await kv.del("custom-categories")
+        await redis.del("custom-categories")
         return null
       }
     } else if (Array.isArray(rawData)) {
       categories = rawData
     } else {
       console.error("Unexpected data type for categories:", typeof rawData)
-      await kv.del("custom-categories")
+      await redis.del("custom-categories")
       return null
     }
 
@@ -98,7 +98,7 @@ export async function getCategories(): Promise<Category[] | null> {
         return categories
       } else {
         console.warn("Invalid category data structure found, clearing corrupted data")
-        await kv.del("custom-categories")
+        await redis.del("custom-categories")
         return null
       }
     }
@@ -109,7 +109,7 @@ export async function getCategories(): Promise<Category[] | null> {
 
     // Clear corrupted data on any error
     try {
-      await kv.del("custom-categories")
+      await redis.del("custom-categories")
       console.log("Cleared corrupted category data")
     } catch (clearError) {
       console.error("Error clearing corrupted data:", clearError)
@@ -122,7 +122,7 @@ export async function getCategories(): Promise<Category[] | null> {
 export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
   try {
     // Get raw data first
-    const rawData = await kv.get("final-jeopardy")
+    const rawData = await redis.get("final-jeopardy")
 
     if (!rawData) {
       return null
@@ -137,14 +137,14 @@ export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
       } catch (parseError) {
         console.error("JSON parse error for final jeopardy:", parseError)
         // Clear corrupted data
-        await kv.del("final-jeopardy")
+        await redis.del("final-jeopardy")
         return null
       }
     } else if (typeof rawData === "object" && rawData !== null) {
       finalJeopardy = rawData as FinalJeopardy
     } else {
       console.error("Unexpected data type for final jeopardy:", typeof rawData)
-      await kv.del("final-jeopardy")
+      await redis.del("final-jeopardy")
       return null
     }
 
@@ -159,14 +159,14 @@ export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
     }
 
     // Clear invalid data
-    await kv.del("final-jeopardy")
+    await redis.del("final-jeopardy")
     return null
   } catch (error) {
     console.error("Error getting final jeopardy:", error)
 
     // Clear corrupted data on any error
     try {
-      await kv.del("final-jeopardy")
+      await redis.del("final-jeopardy")
       console.log("Cleared corrupted final jeopardy data")
     } catch (clearError) {
       console.error("Error clearing corrupted data:", clearError)
@@ -180,9 +180,9 @@ export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
 export async function emergencyClearAll() {
   try {
     // Get all keys and delete them
-    const keys = await kv.keys("*")
+    const keys = await redis.keys("*")
     if (keys.length > 0) {
-      await Promise.all(keys.map((key) => kv.del(key)))
+      await Promise.all(keys.map((key) => redis.del(key)))
     }
 
     revalidatePath("/")
