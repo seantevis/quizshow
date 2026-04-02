@@ -121,10 +121,7 @@ export default function CategoryEditor({ initialCategories, initialFinalJeopardy
     setSaveStatus({ message: "Saving...", isError: false })
 
     try {
-      console.log("[v0] Saving - categories count:", categories.length)
-      console.log("[v0] Saving - finalJeopardy:", finalJeopardy)
       const result = await saveCategories(categories, finalJeopardy)
-      console.log("[v0] Save result:", result)
 
       if (result.success) {
         setSaveStatus({ message: "Categories saved successfully!", isError: false })
@@ -133,7 +130,6 @@ export default function CategoryEditor({ initialCategories, initialFinalJeopardy
         setSaveStatus({ message: result.error || "Failed to save categories", isError: true })
       }
     } catch (error) {
-      console.log("[v0] Save error:", error)
       setSaveStatus({ message: "An error occurred while saving", isError: true })
     }
 
