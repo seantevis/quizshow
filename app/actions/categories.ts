@@ -1,18 +1,201 @@
 "use server"
 
-import { kv } from "@vercel/kv"
+import { put, get, del, list } from "@vercel/blob"
 import { revalidatePath } from "next/cache"
 import type { Category, FinalJeopardy } from "@/data/game-data"
 
+const CATEGORIES_CSV_PATH = "game-data/categories.csv"
+const FINAL_JEOPARDY_CSV_PATH = "game-data/final-jeopardy.csv"
+
+// Helper to escape CSV values
+function escapeCSV(value: string): string {
+  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+    return `"${value.replace(/"/g, '""')}"`
+  }
+  return value
+}
+
+// Helper to unescape CSV values
+function unescapeCSV(value: string): string {
+  if (value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1).replace(/""/g, '"')
+  }
+  return value
+}
+
+// Parse CSV line handling quoted values
+function parseCSVLine(line: string): string[] {
+  const result: string[] = []
+  let current = ""
+  let inQuotes = false
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (char === "," && !inQuotes) {
+      result.push(current.trim())
+      current = ""
+    } else {
+      current += char
+    }
+  }
+  result.push(current.trim())
+  
+  return result.map(unescapeCSV)
+}
+
+// Convert categories to CSV format
+function categoriesToCSV(categories: Category[]): string {
+  const header = "category,value,question,answer,isDailyDouble,imageUrl"
+  const rows: string[] = [header]
+  
+  for (const cat of categories) {
+    for (const q of cat.questions) {
+      rows.push([
+        escapeCSV(cat.category),
+        q.value.toString(),
+        escapeCSV(q.question),
+        escapeCSV(q.answer),
+        q.isDailyDouble ? "true" : "false",
+        q.imageUrl ? escapeCSV(q.imageUrl) : ""
+      ].join(","))
+    }
+  }
+  
+  return rows.join("\n")
+}
+
+// Convert Final Jeopardy to CSV format
+function finalJeopardyToCSV(fj: FinalJeopardy): string {
+  const header = "category,question,answer,imageUrl"
+  const row = [
+    escapeCSV(fj.category),
+    escapeCSV(fj.question),
+    escapeCSV(fj.answer),
+    fj.imageUrl ? escapeCSV(fj.imageUrl) : ""
+  ].join(",")
+  
+  return `${header}\n${row}`
+}
+
+// Parse CSV to categories
+function csvToCategories(csv: string): Category[] {
+  const lines = csv.split("\n").filter(line => line.trim())
+  if (lines.length < 2) return []
+  
+  // Skip header
+  const dataLines = lines.slice(1)
+  
+  const categoryMap = new Map<string, Category>()
+  
+  for (const line of dataLines) {
+    const [categoryName, valueStr, question, answer, isDailyDoubleStr, imageUrl] = parseCSVLine(line)
+    
+    if (!categoryMap.has(categoryName)) {
+      categoryMap.set(categoryName, {
+        category: categoryName,
+        questions: []
+      })
+    }
+    
+    const category = categoryMap.get(categoryName)!
+    category.questions.push({
+      value: parseInt(valueStr, 10),
+      question,
+      answer,
+      isDailyDouble: isDailyDoubleStr === "true",
+      ...(imageUrl ? { imageUrl } : {})
+    })
+  }
+  
+  // Sort questions by value within each category
+  for (const cat of categoryMap.values()) {
+    cat.questions.sort((a, b) => a.value - b.value)
+  }
+  
+  return Array.from(categoryMap.values())
+}
+
+// Parse CSV to Final Jeopardy
+function csvToFinalJeopardy(csv: string): FinalJeopardy | null {
+  const lines = csv.split("\n").filter(line => line.trim())
+  if (lines.length < 2) return null
+  
+  const [category, question, answer, imageUrl] = parseCSVLine(lines[1])
+  
+  return {
+    category,
+    question,
+    answer,
+    ...(imageUrl ? { imageUrl } : {})
+  }
+}
+
+// Check if a blob exists
+async function blobExists(pathname: string): Promise<boolean> {
+  try {
+    const { blobs } = await list({ prefix: pathname })
+    return blobs.some(blob => blob.pathname === pathname)
+  } catch {
+    return false
+  }
+}
+
+// Read CSV from blob storage
+async function readCSVFromBlob(pathname: string): Promise<string | null> {
+  try {
+    const exists = await blobExists(pathname)
+    if (!exists) return null
+    
+    const result = await get(pathname, { access: "private" })
+    if (!result) return null
+    
+    const text = await new Response(result.stream).text()
+    return text
+  } catch (error) {
+    console.error(`Error reading CSV from ${pathname}:`, error)
+    return null
+  }
+}
+
+// Write CSV to blob storage
+async function writeCSVToBlob(pathname: string, content: string): Promise<boolean> {
+  try {
+    // Delete existing blob if it exists
+    const exists = await blobExists(pathname)
+    if (exists) {
+      const { blobs } = await list({ prefix: pathname })
+      const blob = blobs.find(b => b.pathname === pathname)
+      if (blob) {
+        await del(blob.url)
+      }
+    }
+    
+    // Write new content
+    await put(pathname, content, {
+      access: "private",
+      contentType: "text/csv"
+    })
+    
+    return true
+  } catch (error) {
+    console.error(`Error writing CSV to ${pathname}:`, error)
+    return false
+  }
+}
+
 export async function clearAllData() {
   try {
-    // Clear all possible keys that might contain corrupted data
-    await Promise.all([
-      kv.del("custom-categories"),
-      kv.del("final-jeopardy"),
-      kv.del("games"), // Clear saved games too if needed
-      kv.del("games-by-date"),
-    ])
+    const { blobs } = await list({ prefix: "game-data/" })
+    
+    await Promise.all(blobs.map(blob => del(blob.url)))
 
     revalidatePath("/editor")
     revalidatePath("/")
@@ -35,21 +218,24 @@ export async function saveCategories(categories: Category[], finalJeopardy: Fina
     }
 
     if (!finalJeopardy || !finalJeopardy.category || !finalJeopardy.question || !finalJeopardy.answer) {
-      console.log("[v0] Invalid final jeopardy data", { 
-        hasFJ: !!finalJeopardy, 
-        hasCategory: finalJeopardy?.category, 
-        hasQuestion: finalJeopardy?.question, 
-        hasAnswer: finalJeopardy?.answer 
-      })
+      console.log("[v0] Invalid final jeopardy data")
       return { success: false, error: "Invalid final jeopardy data" }
     }
 
-    // Save the data with explicit JSON serialization
-    console.log("[v0] Saving to KV store...")
-    await kv.set("custom-categories", JSON.stringify(categories))
-    console.log("[v0] Saved custom-categories")
-    await kv.set("final-jeopardy", JSON.stringify(finalJeopardy))
-    console.log("[v0] Saved final-jeopardy")
+    // Convert to CSV and save
+    console.log("[v0] Converting to CSV and saving to Blob storage...")
+    
+    const categoriesCSV = categoriesToCSV(categories)
+    const finalJeopardyCSV = finalJeopardyToCSV(finalJeopardy)
+    
+    const [catSuccess, fjSuccess] = await Promise.all([
+      writeCSVToBlob(CATEGORIES_CSV_PATH, categoriesCSV),
+      writeCSVToBlob(FINAL_JEOPARDY_CSV_PATH, finalJeopardyCSV)
+    ])
+    
+    if (!catSuccess || !fjSuccess) {
+      return { success: false, error: "Failed to save CSV files" }
+    }
 
     revalidatePath("/editor")
     revalidatePath("/")
@@ -63,198 +249,133 @@ export async function saveCategories(categories: Category[], finalJeopardy: Fina
 
 export async function getCategories(): Promise<Category[] | null> {
   try {
-    // Get raw data first
-    const rawData = await kv.get("custom-categories")
-
-    if (!rawData) {
+    const csv = await readCSVFromBlob(CATEGORIES_CSV_PATH)
+    
+    if (!csv) {
       return null
     }
 
-    let categories: Category[]
-
-    // Handle both string and object data
-    if (typeof rawData === "string") {
-      try {
-        categories = JSON.parse(rawData)
-      } catch (parseError) {
-        console.error("JSON parse error for categories:", parseError)
-        // Clear corrupted data
-        await kv.del("custom-categories")
-        return null
-      }
-    } else if (Array.isArray(rawData)) {
-      categories = rawData
-    } else {
-      console.error("Unexpected data type for categories:", typeof rawData)
-      await kv.del("custom-categories")
+    const categories = csvToCategories(csv)
+    
+    if (categories.length === 0) {
       return null
     }
 
-    // Validate that the data is an array and has the expected structure
-    if (Array.isArray(categories) && categories.length > 0) {
-      // Basic validation to ensure each category has the required properties
-      const isValid = categories.every(
-        (cat) =>
-          cat &&
-          typeof cat.category === "string" &&
-          Array.isArray(cat.questions) &&
-          cat.questions.every(
-            (q) =>
-              q &&
-              typeof q.question === "string" &&
-              typeof q.answer === "string" &&
-              typeof q.value === "number" &&
-              // Optional fields validation (if present, must be correct type)
-              (q.isDailyDouble === undefined || typeof q.isDailyDouble === "boolean") &&
-              (q.imageUrl === undefined || typeof q.imageUrl === "string"),
-          ),
-      )
+    // Validate structure
+    const isValid = categories.every(
+      (cat) =>
+        cat &&
+        typeof cat.category === "string" &&
+        Array.isArray(cat.questions) &&
+        cat.questions.every(
+          (q) =>
+            q &&
+            typeof q.question === "string" &&
+            typeof q.answer === "string" &&
+            typeof q.value === "number"
+        )
+    )
 
-      if (isValid) {
-        return categories
-      } else {
-        console.warn("Invalid category data structure found, clearing corrupted data")
-        await kv.del("custom-categories")
-        return null
-      }
+    if (isValid) {
+      return categories
     }
 
     return null
   } catch (error) {
     console.error("Error getting categories:", error)
-
-    // Clear corrupted data on any error
-    try {
-      await kv.del("custom-categories")
-      console.log("Cleared corrupted category data")
-    } catch (clearError) {
-      console.error("Error clearing corrupted data:", clearError)
-    }
-
     return null
   }
 }
 
 export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
   try {
-    // Get raw data first
-    const rawData = await kv.get("final-jeopardy")
-
-    if (!rawData) {
+    const csv = await readCSVFromBlob(FINAL_JEOPARDY_CSV_PATH)
+    
+    if (!csv) {
       return null
     }
 
-    let finalJeopardy: FinalJeopardy
-
-    // Handle both string and object data
-    if (typeof rawData === "string") {
-      try {
-        finalJeopardy = JSON.parse(rawData)
-      } catch (parseError) {
-        console.error("JSON parse error for final jeopardy:", parseError)
-        // Clear corrupted data
-        await kv.del("final-jeopardy")
-        return null
-      }
-    } else if (typeof rawData === "object" && rawData !== null) {
-      finalJeopardy = rawData as FinalJeopardy
-    } else {
-      console.error("Unexpected data type for final jeopardy:", typeof rawData)
-      await kv.del("final-jeopardy")
+    const finalJeopardy = csvToFinalJeopardy(csv)
+    
+    if (!finalJeopardy) {
       return null
     }
 
-    // Validate that the data has the expected structure
+    // Validate structure
     if (
-      finalJeopardy &&
       typeof finalJeopardy.category === "string" &&
       typeof finalJeopardy.question === "string" &&
-      typeof finalJeopardy.answer === "string" &&
-      // Optional field validation (if present, must be correct type)
-      (finalJeopardy.imageUrl === undefined || typeof finalJeopardy.imageUrl === "string")
+      typeof finalJeopardy.answer === "string"
     ) {
       return finalJeopardy
     }
 
-    // Clear invalid data
-    await kv.del("final-jeopardy")
     return null
   } catch (error) {
     console.error("Error getting final jeopardy:", error)
-
-    // Clear corrupted data on any error
-    try {
-      await kv.del("final-jeopardy")
-      console.log("Cleared corrupted final jeopardy data")
-    } catch (clearError) {
-      console.error("Error clearing corrupted data:", clearError)
-    }
-
     return null
   }
 }
 
 // Test database connection
 export async function testDatabaseConnection() {
-  const testKey = "db-connection-test"
-  const testValue = { 
-    timestamp: new Date().toISOString(), 
-    message: "Database connection successful!" 
-  }
+  const testPath = "game-data/connection-test.csv"
+  const testContent = `timestamp,message\n${new Date().toISOString()},"Connection test successful!"`
 
   try {
     // Test WRITE operation
-    await kv.set(testKey, JSON.stringify(testValue))
+    const writeSuccess = await writeCSVToBlob(testPath, testContent)
+    if (!writeSuccess) {
+      throw new Error("Write operation failed")
+    }
     
     // Test READ operation
-    const readResult = await kv.get(testKey)
-    
-    // Parse the result
-    let parsedResult
-    if (typeof readResult === "string") {
-      parsedResult = JSON.parse(readResult)
-    } else {
-      parsedResult = readResult
+    const readResult = await readCSVFromBlob(testPath)
+    if (!readResult) {
+      throw new Error("Read operation failed")
     }
 
-    // Clean up test key
-    await kv.del(testKey)
+    // Clean up test file
+    const { blobs } = await list({ prefix: testPath })
+    if (blobs.length > 0) {
+      await del(blobs[0].url)
+    }
 
     return {
       success: true,
-      message: "Database connection verified!",
+      message: "CSV storage connection verified!",
       operations: {
         write: "Success",
         read: "Success",
         delete: "Success"
       },
       testData: {
-        written: testValue,
-        read: parsedResult
+        written: testContent,
+        read: readResult
       }
     }
   } catch (error) {
-    console.error("Database connection test failed:", error)
+    console.error("Storage connection test failed:", error)
     return {
       success: false,
-      message: "Database connection failed",
+      message: "Storage connection failed",
       error: error instanceof Error ? error.message : String(error)
     }
   }
 }
 
-// Emergency function to clear all KV data
+// Emergency function to clear all data
 export async function emergencyClearAll() {
   try {
-    // Get all keys and delete them
-    const keys = await kv.keys("*")
-    if (keys.length > 0) {
-      await Promise.all(keys.map((key) => kv.del(key)))
+    const { blobs } = await list({ prefix: "game-data/" })
+    
+    if (blobs.length > 0) {
+      await Promise.all(blobs.map(blob => del(blob.url)))
     }
 
     revalidatePath("/")
     revalidatePath("/editor")
-    return { success: true, clearedKeys: keys.length }
+    return { success: true, clearedFiles: blobs.length }
   } catch (error) {
     console.error("Emergency clear failed:", error)
     return { success: false, error: "Failed to clear all data" }

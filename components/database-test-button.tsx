@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { testDatabaseConnection } from "@/app/actions/categories"
 import { Button } from "@/components/ui/button"
-import { CheckCircle, XCircle, Loader2, Database } from "lucide-react"
+import { CheckCircle, XCircle, Loader2, FileSpreadsheet } from "lucide-react"
 
 interface DatabaseTestResult {
   success: boolean
@@ -14,8 +14,8 @@ interface DatabaseTestResult {
     delete: string
   }
   testData?: {
-    written: { timestamp: string; message: string }
-    read: { timestamp: string; message: string }
+    written: string
+    read: string
   }
   error?: string
 }
@@ -47,8 +47,8 @@ export function DatabaseTestButton({ initialResult }: DatabaseTestButtonProps) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10">
-        <Database className="w-4 h-4 text-white/70" />
-        <span className="text-sm text-white/70">Database:</span>
+        <FileSpreadsheet className="w-4 h-4 text-white/70" />
+        <span className="text-sm text-white/70">CSV Storage:</span>
         {result.success ? (
           <span className="flex items-center gap-1 text-sm text-green-400">
             <CheckCircle className="w-4 h-4" />
