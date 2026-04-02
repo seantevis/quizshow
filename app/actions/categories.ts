@@ -194,6 +194,55 @@ export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
   }
 }
 
+// Test database connection
+export async function testDatabaseConnection() {
+  const testKey = "db-connection-test"
+  const testValue = { 
+    timestamp: new Date().toISOString(), 
+    message: "Database connection successful!" 
+  }
+
+  try {
+    // Test WRITE operation
+    await kv.set(testKey, JSON.stringify(testValue))
+    
+    // Test READ operation
+    const readResult = await kv.get(testKey)
+    
+    // Parse the result
+    let parsedResult
+    if (typeof readResult === "string") {
+      parsedResult = JSON.parse(readResult)
+    } else {
+      parsedResult = readResult
+    }
+
+    // Clean up test key
+    await kv.del(testKey)
+
+    return {
+      success: true,
+      message: "Database connection verified!",
+      operations: {
+        write: "Success",
+        read: "Success",
+        delete: "Success"
+      },
+      testData: {
+        written: testValue,
+        read: parsedResult
+      }
+    }
+  } catch (error) {
+    console.error("Database connection test failed:", error)
+    return {
+      success: false,
+      message: "Database connection failed",
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
+}
+
 // Emergency function to clear all KV data
 export async function emergencyClearAll() {
   try {
