@@ -10,6 +10,7 @@ import {
   X,
   Volume2,
   VolumeX,
+  Save,
   FileEdit,
   Trash2,
   Edit2,
@@ -21,6 +22,7 @@ import {
 import PlayerManagement, { type Player } from "./player-management"
 import { useSound } from "@/contexts/sound-context"
 import Link from "next/link"
+import { saveGameState, getSavedGames, loadGameState, deleteGameState, type GameState } from "@/app/actions/game-state"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import ImportExportDialog from "./import-export-dialog"
@@ -62,6 +64,9 @@ export default function SettingsMenu({
   setHideGameTitle,
 }: SettingsMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<"players" | "saved-games">("players")
+  const [saveGameName, setSaveGameName] = useState("")
+  const [savedGames, setSavedGames] = useState<GameState[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [saveMessage, setSaveMessage] = useState("")
   const [isEditingGameName, setIsEditingGameName] = useState(false)
@@ -74,8 +79,112 @@ export default function SettingsMenu({
   const router = useRouter()
   const [showImportExport, setShowImportExport] = useState(false)
 
+  // Fetch saved games when the menu is opened
+  useEffect(() => {
+    if (isOpen && activeTab === "saved-games") {
+      fetchSavedGames()
+    }
+  }, [isOpen, activeTab])
+
   // Initialize save game name with current game name
-  useEffect(() => {}, [gameName])
+  useEffect(() => {
+    setSaveGameName(gameName)
+  }, [gameName])
+
+  const fetchSavedGames = async () => {
+    setIsLoading(true)
+    const games = await getSavedGames()
+    setSavedGames(games)
+    setIsLoading(false)
+  }
+
+  const handleSaveGame = async () => {
+    if (!saveGameName.trim()) {
+      setSaveMessage("Please enter a game name")
+      return
+    }
+
+    setIsLoading(true)
+    setSaveMessage("Saving game...")
+
+    const result = await saveGameState({
+      name: saveGameName.trim(),
+      players,
+      activePlayer,
+      answeredQuestions: Array.from(answeredQuestions),
+      customCategories,
+      gameName,
+      gameTitleImage,
+      useImageAsTitle,
+      hideGameTitle,
+    })
+
+    if (result.success) {
+      setSaveMessage("Game saved successfully!")
+      setSaveGameName("")
+      fetchSavedGames()
+    } else {
+      setSaveMessage("Failed to save game")
+    }
+
+    setIsLoading(false)
+
+    // Clear message after 3 seconds
+    setTimeout(() => {
+      setSaveMessage("")
+    }, 3000)
+  }
+
+  const handleLoadGame = async (gameId: string) => {
+    setIsLoading(true)
+    const gameState = await loadGameState(gameId)
+
+    if (gameState) {
+      setPlayers(gameState.players)
+      setActivePlayer(gameState.activePlayer)
+      setAnsweredQuestions(new Set(gameState.answeredQuestions))
+
+      // Load game name if available
+      if (gameState.gameName) {
+        setGameName(gameState.gameName)
+      }
+
+      // Load game title image if available
+      if (gameState.gameTitleImage) {
+        setGameTitleImage(gameState.gameTitleImage)
+      }
+
+      // Load use image as title setting if available
+      if (typeof gameState.useImageAsTitle === "boolean") {
+        setUseImageAsTitle(gameState.useImageAsTitle)
+      }
+
+      // Load hide game title setting if available
+      if (typeof gameState.hideGameTitle === "boolean") {
+        setHideGameTitle(gameState.hideGameTitle)
+      }
+
+      setIsOpen(false)
+
+      // If the game has custom categories, reload the page to use them
+      if (gameState.customCategories && gameState.customCategories.length > 0) {
+        router.refresh()
+      }
+    }
+
+    setIsLoading(false)
+  }
+
+  const handleDeleteGame = async (gameId: string) => {
+    setIsLoading(true)
+    await deleteGameState(gameId)
+    fetchSavedGames()
+    setIsLoading(false)
+  }
+
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleString()
+  }
 
   const handleGameNameChange = () => {
     if (tempGameName.trim()) {
@@ -393,13 +502,6 @@ export default function SettingsMenu({
               </Button>
 
               <Button
-                className="w-full bg-[#005AF2] hover:bg-[#0046c9] text-white"
-                onClick={() => setShowImportExport(true)}
-              >
-                <FileDown size={18} className="mr-2" /> Import/Export Categories
-              </Button>
-
-              <Button
                 className="w-full bg-red-800 hover:bg-red-900 text-white border-2 border-red-600"
                 onClick={handleEmergencyClear}
                 disabled={isLoading}
@@ -407,14 +509,108 @@ export default function SettingsMenu({
                 <AlertTriangle size={18} className="mr-2" /> Emergency Clear All
               </Button>
 
+              <Button
+                className="w-full bg-[#005AF2] hover:bg-[#0046c9] text-white"
+                onClick={() => setShowImportExport(true)}
+              >
+                <FileDown size={18} className="mr-2" /> Import/Export Categories
+              </Button>
+
               <div className="bg-[#005AF2] p-4 rounded-lg">
-                <h3 className="text-xl font-semibold text-white mb-4">Player Management</h3>
-                <PlayerManagement
-                  players={players}
-                  setPlayers={setPlayers}
-                  activePlayer={activePlayer}
-                  setActivePlayer={setActivePlayer}
-                />
+                <div className="flex mb-4 border-b border-[#0046c9]">
+                  <button
+                    className={`px-4 py-2 ${activeTab === "players" ? "text-[#f8d64e] border-b-2 border-[#f8d64e]" : "text-white"}`}
+                    onClick={() => setActiveTab("players")}
+                  >
+                    Players
+                  </button>
+                  <button
+                    className={`px-4 py-2 ${activeTab === "saved-games" ? "text-[#f8d64e] border-b-2 border-[#f8d64e]" : "text-white"}`}
+                    onClick={() => setActiveTab("saved-games")}
+                  >
+                    Saved Games
+                  </button>
+                </div>
+
+                {activeTab === "players" && (
+                  <div>
+                    <h3 className="text-xl font-semibold text-white mb-4">Player Management</h3>
+                    <PlayerManagement
+                      players={players}
+                      setPlayers={setPlayers}
+                      activePlayer={activePlayer}
+                      setActivePlayer={setActivePlayer}
+                    />
+
+                    <div className="mt-6 pt-4 border-t border-[#0046c9]">
+                      <h3 className="text-xl font-semibold text-white mb-4">Save Current Game</h3>
+                      <div className="space-y-3">
+                        <Input
+                          type="text"
+                          value={saveGameName}
+                          onChange={(e) => setSaveGameName(e.target.value)}
+                          placeholder="Enter save name"
+                          className="w-full p-2 bg-[#0046c9] text-white border border-[#005AF2] rounded-lg"
+                        />
+                        <Button
+                          onClick={handleSaveGame}
+                          disabled={isLoading}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <Save size={18} className="mr-2" /> Save Game
+                        </Button>
+                        {saveMessage && (
+                          <p
+                            className={`text-sm ${saveMessage.includes("Failed") ? "text-red-400" : "text-green-400"}`}
+                          >
+                            {saveMessage}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "saved-games" && (
+                  <div>
+                    <h3 className="text-xl font-semibold text-white mb-4">Saved Games</h3>
+                    {isLoading ? (
+                      <p className="text-white">Loading saved games...</p>
+                    ) : savedGames.length === 0 ? (
+                      <p className="text-white">No saved games found</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {savedGames.map((game) => (
+                          <div key={game.id} className="bg-[#0046c9] p-3 rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <h4 className="font-bold text-white">{game.name}</h4>
+                                <p className="text-sm text-gray-300">{formatDate(game.timestamp)}</p>
+                                <p className="text-sm text-gray-300">{game.players.length} players</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleLoadGame(game.id)}
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                >
+                                  Load
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleDeleteGame(game.id)}
+                                  className="bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
