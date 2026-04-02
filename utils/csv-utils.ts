@@ -49,14 +49,14 @@ export function csvToCategories(csv: string): { categories: Category[]; finalJeo
     // Parse the CSV line, handling quoted fields correctly
     const fields = parseCSVLine(line)
 
-    if (fields.length >= 6) {
-      const type = fields[0].toLowerCase()
-      const categoryName = fields[1]
+    if (fields.length >= 5) {
+      const type = (fields[0] || "").trim().toLowerCase()
+      const categoryName = (fields[1] || "").trim()
       const value = Number.parseInt(fields[2], 10)
-      const questionText = fields[3]
-      const answer = fields[4]
-      const isDailyDouble = fields[5].toLowerCase() === "true"
-      const imageUrl = fields[6] || undefined
+      const questionText = (fields[3] || "").trim()
+      const answer = (fields[4] || "").trim()
+      const isDailyDouble = fields.length > 5 ? (fields[5] || "").trim().toLowerCase() === "true" : false
+      const imageUrl = fields.length > 6 && fields[6] ? fields[6].trim() : undefined
 
       if (type === "final") {
         // This is a Final Jeopardy entry
@@ -64,15 +64,15 @@ export function csvToCategories(csv: string): { categories: Category[]; finalJeo
           category: categoryName,
           question: questionText,
           answer,
-          imageUrl,
+          imageUrl: imageUrl || undefined,
         }
-      } else if (type === "regular" && !isNaN(value) && categoryName && questionText && answer) {
+      } else if ((type === "regular" || type === "") && !isNaN(value) && categoryName && questionText && answer) {
         const question: Question = {
           value,
           question: questionText,
           answer,
           isDailyDouble,
-          imageUrl,
+          imageUrl: imageUrl || undefined,
         }
 
         // Add to the category map
@@ -152,23 +152,20 @@ export function validateCSV(csv: string): { valid: boolean; message?: string } {
       return { valid: false, message: "CSV must contain a header row and at least one data row" }
     }
 
-    // Check header format
+    // Check header format - required columns
     const header = lines[0].toLowerCase()
-    if (
-      !header.includes("type") ||
-      !header.includes("category") ||
-      !header.includes("value") ||
-      !header.includes("question") ||
-      !header.includes("answer")
-    ) {
+    const hasRequiredColumns =
+      header.includes("category") && header.includes("value") && header.includes("question") && header.includes("answer")
+
+    if (!hasRequiredColumns) {
       return {
         valid: false,
-        message: "CSV header must include Type, Category, Value, Question, and Answer columns",
+        message: "CSV header must include Category, Value, Question, and Answer columns",
       }
     }
 
     // Parse and validate data
-    const { categories, finalJeopardy } = csvToCategories(csv)
+    const { categories } = csvToCategories(csv)
 
     if (categories.length === 0) {
       return { valid: false, message: "No valid categories found in CSV" }

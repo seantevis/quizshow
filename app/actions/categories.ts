@@ -85,7 +85,14 @@ export async function getCategories(): Promise<Category[] | null> {
           typeof cat.category === "string" &&
           Array.isArray(cat.questions) &&
           cat.questions.every(
-            (q) => q && typeof q.question === "string" && typeof q.answer === "string" && typeof q.value === "number",
+            (q) =>
+              q &&
+              typeof q.question === "string" &&
+              typeof q.answer === "string" &&
+              typeof q.value === "number" &&
+              // Optional fields validation (if present, must be correct type)
+              (q.isDailyDouble === undefined || typeof q.isDailyDouble === "boolean") &&
+              (q.imageUrl === undefined || typeof q.imageUrl === "string"),
           ),
       )
 
@@ -148,7 +155,9 @@ export async function getFinalJeopardy(): Promise<FinalJeopardy | null> {
       finalJeopardy &&
       typeof finalJeopardy.category === "string" &&
       typeof finalJeopardy.question === "string" &&
-      typeof finalJeopardy.answer === "string"
+      typeof finalJeopardy.answer === "string" &&
+      // Optional field validation (if present, must be correct type)
+      (finalJeopardy.imageUrl === undefined || typeof finalJeopardy.imageUrl === "string")
     ) {
       return finalJeopardy
     }
