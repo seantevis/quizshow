@@ -39,6 +39,7 @@ export async function saveCategories(categories: Category[], finalJeopardy: Fina
     await kv.set("final-jeopardy", JSON.stringify(finalJeopardy))
 
     revalidatePath("/editor")
+    revalidatePath("/editor/category/[id]", "page")
     revalidatePath("/")
     return { success: true }
   } catch (error) {

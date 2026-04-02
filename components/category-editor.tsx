@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Save, Trash2, AlertCircle, X, LinkIcon, ChevronRight } from "lucide-react"
+import { Plus, Save, Trash2, AlertCircle, LinkIcon, X, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { saveCategories } from "@/app/actions/categories"
 import { gameData, finalJeopardyData, type Category, type FinalJeopardy } from "@/data/game-data"
