@@ -25,25 +25,36 @@ export async function clearAllData() {
 
 export async function saveCategories(categories: Category[], finalJeopardy: FinalJeopardy) {
   try {
+    console.log("[v0] Server: saveCategories called")
+    console.log("[v0] Server: categories count:", categories?.length)
+    console.log("[v0] Server: finalJeopardy:", finalJeopardy?.category)
+    
     // Validate input data before saving
     if (!Array.isArray(categories) || categories.length === 0) {
+      console.log("[v0] Server: Invalid categories data")
       return { success: false, error: "Invalid categories data" }
     }
 
     if (!finalJeopardy || !finalJeopardy.category || !finalJeopardy.question || !finalJeopardy.answer) {
+      console.log("[v0] Server: Invalid final jeopardy data")
       return { success: false, error: "Invalid final jeopardy data" }
     }
 
     // Save the data with explicit JSON serialization
+    console.log("[v0] Server: Saving to KV...")
     await kv.set("custom-categories", JSON.stringify(categories))
+    console.log("[v0] Server: Saved custom-categories")
     await kv.set("final-jeopardy", JSON.stringify(finalJeopardy))
+    console.log("[v0] Server: Saved final-jeopardy")
 
     revalidatePath("/editor")
     revalidatePath("/")
+    console.log("[v0] Server: Save successful")
     return { success: true }
   } catch (error) {
-    console.error("Error saving categories:", error)
-    return { success: false, error: "Failed to save categories" }
+    console.error("[v0] Server: Error saving categories:", error)
+    const errorMessage = error instanceof Error ? error.message : "Failed to save categories"
+    return { success: false, error: errorMessage }
   }
 }
 
