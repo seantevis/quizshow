@@ -17,6 +17,7 @@ import {
   EyeOff,
   FileDown,
   AlertTriangle,
+  RotateCcw,
 } from "lucide-react"
 import PlayerManagement, { type Player } from "./player-management"
 import { useSound } from "@/contexts/sound-context"
@@ -25,6 +26,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import ImportExportDialog from "./import-export-dialog"
 import { clearAllData, emergencyClearAll } from "@/app/actions/categories"
+import { resetGameState } from "@/app/actions/game-state"
 
 interface SettingsMenuProps {
   players: Player[]
@@ -83,16 +85,7 @@ export default function SettingsMenu({
       setGameTitleImage(tempGameTitleImage)
       setUseImageAsTitle(tempUseImageAsTitle)
       setHideGameTitle(tempHideGameTitle)
-
-      // Save to localStorage
-      try {
-        localStorage.setItem("walpeordy-game-name", tempGameName.trim())
-        localStorage.setItem("walpeordy-game-title-image", tempGameTitleImage)
-        localStorage.setItem("walpeordy-use-image-as-title", tempUseImageAsTitle.toString())
-        localStorage.setItem("walpeordy-hide-game-title", tempHideGameTitle.toString())
-      } catch (error) {
-        console.warn("Could not save game settings to localStorage")
-      }
+      // State is automatically persisted via GameBoard's useEffect
     } else {
       setTempGameName(gameName) // Reset to current name if empty
     }
@@ -121,6 +114,37 @@ export default function SettingsMenu({
       return true
     } catch (error) {
       return false
+    }
+  }
+
+  const handleResetGame = async () => {
+    if (
+      confirm("Are you sure you want to reset the game? This will clear all players, scores, and answered questions but keep your settings and categories.")
+    ) {
+      setIsLoading(true)
+      const result = await resetGameState()
+
+      if (result.success) {
+        setSaveMessage("Game reset successfully!")
+        // Clear local state
+        setPlayers([])
+        setActivePlayer(null)
+        setAnsweredQuestions(new Set())
+        // Refresh the page
+        setTimeout(() => {
+          router.refresh()
+          setIsOpen(false)
+        }, 1500)
+      } else {
+        setSaveMessage("Failed to reset game")
+      }
+
+      setIsLoading(false)
+
+      // Clear message after 3 seconds
+      setTimeout(() => {
+        setSaveMessage("")
+      }, 3000)
     }
   }
 
@@ -209,6 +233,18 @@ export default function SettingsMenu({
                 <span className="sr-only">Close</span>
               </Button>
             </div>
+
+            {saveMessage && (
+              <div className={`p-3 rounded-lg mb-4 text-center font-medium ${
+                saveMessage.includes("success") || saveMessage.includes("Success")
+                  ? "bg-green-600 text-white"
+                  : saveMessage.includes("Failed") || saveMessage.includes("failed")
+                  ? "bg-red-600 text-white"
+                  : "bg-blue-600 text-white"
+              }`}>
+                {saveMessage}
+              </div>
+            )}
 
             <div className="space-y-6">
               {/* Game Name Editor */}
@@ -383,6 +419,14 @@ export default function SettingsMenu({
                   <FileEdit size={18} className="mr-2" /> Edit Questions & Categories
                 </Button>
               </Link>
+
+              <Button
+                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
+                onClick={handleResetGame}
+                disabled={isLoading}
+              >
+                <RotateCcw size={18} className="mr-2" /> Reset Game Progress
+              </Button>
 
               <Button
                 className="w-full bg-red-600 hover:bg-red-700 text-white"

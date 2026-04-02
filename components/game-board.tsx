@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { gameData, finalJeopardyData } from "@/data/game-data"
 import QuestionOverlay from "./question-overlay"
 import DailyDoubleOverlay from "./daily-double-overlay"
@@ -11,13 +11,19 @@ import GameTitleUpdater from "./game-title-updater"
 import type { Player } from "./player-management"
 import { useSound } from "@/contexts/sound-context"
 import { Button } from "@/components/ui/button"
+import {
+  saveGameState,
+  type GameState,
+} from "@/app/actions/game-state"
 
 export default function GameBoard({
   customCategories,
   customFinalJeopardy,
+  initialGameState,
 }: {
   customCategories?: typeof gameData
   customFinalJeopardy?: typeof finalJeopardyData
+  initialGameState?: GameState
 }) {
   const [selectedQuestion, setSelectedQuestion] = useState<{
     category: string
@@ -37,13 +43,26 @@ export default function GameBoard({
     wager: number
   } | null>(null)
 
-  const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
-  const [players, setPlayers] = useState<Player[]>([])
-  const [activePlayer, setActivePlayer] = useState<string | null>(null)
-  const [gameName, setGameName] = useState<string>("Questions!")
-  const [gameTitleImage, setGameTitleImage] = useState<string>("")
-  const [useImageAsTitle, setUseImageAsTitle] = useState<boolean>(false)
-  const [hideGameTitle, setHideGameTitle] = useState<boolean>(false)
+  // Initialize state from server-loaded data
+  const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(
+    new Set(initialGameState?.answeredQuestions || [])
+  )
+  const [players, setPlayers] = useState<Player[]>(initialGameState?.players || [])
+  const [activePlayer, setActivePlayer] = useState<string | null>(
+    initialGameState?.activePlayerId || null
+  )
+  const [gameName, setGameName] = useState<string>(
+    initialGameState?.settings?.gameName || "Questions!"
+  )
+  const [gameTitleImage, setGameTitleImage] = useState<string>(
+    initialGameState?.settings?.gameTitleImage || ""
+  )
+  const [useImageAsTitle, setUseImageAsTitle] = useState<boolean>(
+    initialGameState?.settings?.useImageAsTitle || false
+  )
+  const [hideGameTitle, setHideGameTitle] = useState<boolean>(
+    initialGameState?.settings?.hideGameTitle || false
+  )
   const [showFinalJeopardy, setShowFinalJeopardy] = useState<boolean>(false)
   const [finalJeopardyCompleted, setFinalJeopardyCompleted] = useState<boolean>(false)
   const { playSound, stopAllSounds } = useSound()
@@ -52,32 +71,30 @@ export default function GameBoard({
   const categories = customCategories || gameData
   const finalJeopardy = customFinalJeopardy || finalJeopardyData
 
-  // Load game settings from localStorage on component mount
-  useEffect(() => {
-    try {
-      const savedGameName = localStorage.getItem("walpeordy-game-name")
-      if (savedGameName) {
-        setGameName(savedGameName)
-      }
-
-      const savedGameTitleImage = localStorage.getItem("walpeordy-game-title-image")
-      if (savedGameTitleImage) {
-        setGameTitleImage(savedGameTitleImage)
-      }
-
-      const savedUseImageAsTitle = localStorage.getItem("walpeordy-use-image-as-title")
-      if (savedUseImageAsTitle) {
-        setUseImageAsTitle(savedUseImageAsTitle === "true")
-      }
-
-      const savedHideGameTitle = localStorage.getItem("walpeordy-hide-game-title")
-      if (savedHideGameTitle) {
-        setHideGameTitle(savedHideGameTitle === "true")
-      }
-    } catch (error) {
-      console.warn("Could not access localStorage for game settings")
+  // Save game state to Redis whenever it changes
+  const persistGameState = useCallback(async () => {
+    const state: GameState = {
+      players,
+      activePlayerId: activePlayer,
+      answeredQuestions: Array.from(answeredQuestions),
+      settings: {
+        gameName,
+        gameTitleImage,
+        useImageAsTitle,
+        hideGameTitle,
+      },
     }
-  }, [])
+    await saveGameState(state)
+  }, [players, activePlayer, answeredQuestions, gameName, gameTitleImage, useImageAsTitle, hideGameTitle])
+
+  // Persist state when important values change (debounced)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      persistGameState()
+    }, 500) // Debounce by 500ms
+
+    return () => clearTimeout(timeoutId)
+  }, [persistGameState])
 
   // Play board fill sound when the component mounts
   useEffect(() => {

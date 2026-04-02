@@ -10,6 +10,7 @@ export async function clearAllData() {
     await Promise.all([
       kv.del("custom-categories"),
       kv.del("final-jeopardy"),
+      kv.del("game-state"),
       kv.del("games"), // Clear saved games too if needed
       kv.del("games-by-date"),
     ])
