@@ -172,67 +172,7 @@ export const gameData: Category[] = [
       },
     ],
   },
-  {
-    category: "Sports",
-    questions: [
-      {
-        value: 100,
-        question: "This sport is played with a shuttlecock.",
-        answer: "What is badminton?",
-      },
-      {
-        value: 200,
-        question: "This country has won the most FIFA World Cup tournaments.",
-        answer: "What is Brazil?",
-      },
-      {
-        value: 300,
-        question: "This American swimmer has won the most Olympic gold medals in history.",
-        answer: "Who is Michael Phelps?",
-      },
-      {
-        value: 400,
-        question: "This tennis tournament is played on clay courts in Paris.",
-        answer: "What is the French Open?",
-      },
-      {
-        value: 500,
-        question: "In baseball, this rare achievement involves a pitcher retiring all 27 batters in order.",
-        answer: "What is a perfect game?",
-      },
-    ],
-  },
-  {
-    category: "Technology",
-    questions: [
-      {
-        value: 100,
-        question: "This company created the iPhone.",
-        answer: "What is Apple?",
-      },
-      {
-        value: 200,
-        question: "HTML stands for this.",
-        answer: "What is HyperText Markup Language?",
-      },
-      {
-        value: 300,
-        question: "This programming language created by Guido van Rossum is named after a comedy group.",
-        answer: "What is Python?",
-      },
-      {
-        value: 400,
-        question: "This technology uses radio waves to identify and track objects without physical contact.",
-        answer: "What is RFID (Radio-Frequency Identification)?",
-      },
-      {
-        value: 500,
-        question: "This distributed ledger technology is the foundation of Bitcoin.",
-        answer: "What is blockchain?",
-      },
-    ],
-  },
-]
+  ]
 
 export const finalJeopardyData: FinalJeopardy = {
   category: "World Geography",
