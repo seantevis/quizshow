@@ -14,13 +14,12 @@ import {
   LinkIcon,
   EyeOff,
   FileDown,
-  AlertTriangle,
 } from "lucide-react"
 import PlayerManagement, { type Player } from "./player-management"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import ImportExportDialog from "./import-export-dialog"
-import { clearAllData, emergencyClearAll } from "@/app/actions/categories"
+import { clearAllData } from "@/app/actions/categories"
 import Link from "next/link"
 
 interface SettingsMenuProps {
@@ -144,37 +143,6 @@ export default function SettingsMenu({
       setTimeout(() => {
         setSaveMessage("")
       }, 3000)
-    }
-  }
-
-  const handleEmergencyClear = async () => {
-    if (
-      confirm(
-        "EMERGENCY CLEAR: This will delete ALL stored data including saved games. Are you absolutely sure? This cannot be undone.",
-      )
-    ) {
-      setIsLoading(true)
-      setSaveMessage("Emergency clearing all data...")
-
-      const result = await emergencyClearAll()
-
-      if (result.success) {
-        setSaveMessage(`Emergency clear successful! Cleared ${result.clearedKeys} items.`)
-        // Refresh the page to reload with default data
-        setTimeout(() => {
-          router.refresh()
-          setIsOpen(false)
-        }, 2000)
-      } else {
-        setSaveMessage("Emergency clear failed")
-      }
-
-      setIsLoading(false)
-
-      // Clear message after 5 seconds
-      setTimeout(() => {
-        setSaveMessage("")
-      }, 5000)
     }
   }
 
@@ -365,26 +333,10 @@ export default function SettingsMenu({
               </Link>
 
               <Button
-                className="w-full bg-red-600 hover:bg-red-700 text-white"
-                onClick={handleClearAllData}
-                disabled={isLoading}
-              >
-                <Trash2 size={18} className="mr-2" /> Clear All Data
-              </Button>
-
-              <Button
                 className="w-full bg-[#005AF2] hover:bg-[#0046c9] text-white"
                 onClick={() => setShowImportExport(true)}
               >
                 <FileDown size={18} className="mr-2" /> Import/Export Categories
-              </Button>
-
-              <Button
-                className="w-full bg-red-800 hover:bg-red-900 text-white border-2 border-red-600"
-                onClick={handleEmergencyClear}
-                disabled={isLoading}
-              >
-                <AlertTriangle size={18} className="mr-2" /> Emergency Clear All
               </Button>
 
               <div className="bg-[#005AF2] p-4 rounded-lg">
@@ -396,6 +348,14 @@ export default function SettingsMenu({
                   setActivePlayer={setActivePlayer}
                 />
               </div>
+
+              <Button
+                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleClearAllData}
+                disabled={isLoading}
+              >
+                <Trash2 size={18} className="mr-2" /> Clear All Data
+              </Button>
             </div>
           </div>
         </div>
