@@ -15,17 +15,13 @@ import {
   EyeOff,
   FileDown,
   AlertTriangle,
-  ChevronLeft,
-  Plus,
-  Save,
-  List,
 } from "lucide-react"
 import PlayerManagement, { type Player } from "./player-management"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import ImportExportDialog from "./import-export-dialog"
-import { clearAllData, emergencyClearAll, saveCategories, getCategories, getFinalJeopardy } from "@/app/actions/categories"
-import { gameData, finalJeopardyData, type Category, type Question, type FinalJeopardy } from "@/data/game-data"
+import { clearAllData, emergencyClearAll } from "@/app/actions/categories"
+import Link from "next/link"
 
 interface SettingsMenuProps {
   players: Player[]
@@ -73,117 +69,9 @@ export default function SettingsMenu({
   const [imagePreviewError, setImagePreviewError] = useState(false)
   const router = useRouter()
   const [showImportExport, setShowImportExport] = useState(false)
-  
-  // Category/Question editor state
-  const [showCategoryEditor, setShowCategoryEditor] = useState(false)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [finalJeopardy, setFinalJeopardy] = useState<FinalJeopardy | null>(null)
-  const [selectedCategoryIndex, setSelectedCategoryIndex] = useState<number | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [editorSaveMessage, setEditorSaveMessage] = useState("")
 
   // Initialize save game name with current game name
   useEffect(() => {}, [gameName])
-
-  // Load categories when editor is opened
-  const loadCategories = async () => {
-    const loadedCategories = await getCategories()
-    const loadedFinalJeopardy = await getFinalJeopardy()
-    
-    if (loadedCategories && loadedCategories.length > 0) {
-      setCategories(JSON.parse(JSON.stringify(loadedCategories)))
-    } else {
-      setCategories(JSON.parse(JSON.stringify(gameData)))
-    }
-    
-    if (loadedFinalJeopardy) {
-      setFinalJeopardy(JSON.parse(JSON.stringify(loadedFinalJeopardy)))
-    } else {
-      setFinalJeopardy(JSON.parse(JSON.stringify(finalJeopardyData)))
-    }
-  }
-
-  const handleOpenCategoryEditor = async () => {
-    setShowCategoryEditor(true)
-    await loadCategories()
-  }
-
-  const handleCategoryNameChange = (index: number, value: string) => {
-    const newCategories = [...categories]
-    newCategories[index].category = value
-    setCategories(newCategories)
-  }
-
-  const handleQuestionChange = (
-    questionIndex: number,
-    field: keyof Question,
-    value: string | number | boolean,
-  ) => {
-    if (selectedCategoryIndex === null) return
-    const newCategories = [...categories]
-
-    if (field === "value" && typeof value === "string") {
-      newCategories[selectedCategoryIndex].questions[questionIndex][field] = Number.parseInt(value, 10) || 0
-    } else if (field === "isDailyDouble" && typeof value === "boolean") {
-      newCategories[selectedCategoryIndex].questions[questionIndex][field] = value
-    } else if (typeof value === "string") {
-      newCategories[selectedCategoryIndex].questions[questionIndex][field as "question" | "answer" | "imageUrl"] = value
-    }
-
-    setCategories(newCategories)
-  }
-
-  const handleAddCategory = () => {
-    const newCategory: Category = {
-      category: "New Category",
-      questions: [
-        { value: 100, question: "", answer: "" },
-        { value: 200, question: "", answer: "" },
-        { value: 300, question: "", answer: "" },
-        { value: 400, question: "", answer: "" },
-        { value: 500, question: "", answer: "" },
-      ],
-    }
-    setCategories([...categories, newCategory])
-  }
-
-  const handleRemoveCategory = (index: number) => {
-    if (categories.length <= 1) return
-    const newCategories = [...categories]
-    newCategories.splice(index, 1)
-    setCategories(newCategories)
-    if (selectedCategoryIndex === index) {
-      setSelectedCategoryIndex(null)
-    }
-  }
-
-  const handleSaveCategories = async () => {
-    setIsSaving(true)
-    setEditorSaveMessage("Saving...")
-
-    try {
-      const result = await saveCategories(categories, finalJeopardy || finalJeopardyData)
-      if (result.success) {
-        setEditorSaveMessage("Saved successfully!")
-        router.refresh()
-      } else {
-        setEditorSaveMessage(result.error || "Failed to save")
-      }
-    } catch (error) {
-      setEditorSaveMessage("Error saving categories")
-    }
-
-    setIsSaving(false)
-    setTimeout(() => setEditorSaveMessage(""), 3000)
-  }
-
-  const handleFinalJeopardyChange = (field: keyof FinalJeopardy, value: string) => {
-    if (!finalJeopardy) return
-    setFinalJeopardy({
-      ...finalJeopardy,
-      [field]: value,
-    })
-  }
 
   const handleGameNameChange = () => {
     if (tempGameName.trim()) {
@@ -470,183 +358,11 @@ export default function SettingsMenu({
                 )}
               </div>
 
-              <Button 
-                className="w-full bg-[#005AF2] hover:bg-[#0046c9] text-white"
-                onClick={handleOpenCategoryEditor}
-              >
-                <FileEdit size={18} className="mr-2" /> Edit Questions & Categories
-              </Button>
-
-              {/* Category Editor Panel */}
-              {showCategoryEditor && (
-                <div className="bg-[#0046c9] p-4 rounded-lg space-y-4">
-                  <div className="flex items-center justify-between">
-                    {selectedCategoryIndex !== null ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-white hover:bg-[#005AF2]"
-                        onClick={() => setSelectedCategoryIndex(null)}
-                      >
-                        <ChevronLeft size={18} className="mr-1" /> Back to Categories
-                      </Button>
-                    ) : (
-                      <h3 className="text-white font-semibold">Categories</h3>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-white hover:bg-[#005AF2]"
-                      onClick={() => {
-                        setShowCategoryEditor(false)
-                        setSelectedCategoryIndex(null)
-                      }}
-                    >
-                      <X size={18} />
-                    </Button>
-                  </div>
-
-                  {selectedCategoryIndex === null ? (
-                    /* Category List View */
-                    <div className="space-y-2">
-                      {categories.map((category, index) => (
-                        <div 
-                          key={index} 
-                          className="flex items-center gap-2 bg-[#00236A] p-3 rounded-lg"
-                        >
-                          <Input
-                            value={category.category}
-                            onChange={(e) => handleCategoryNameChange(index, e.target.value)}
-                            className="flex-1 bg-[#005AF2] border-[#005AF2] text-white"
-                            placeholder="Category Name"
-                          />
-                          <Button
-                            size="sm"
-                            className="bg-[#f8d64e] hover:bg-[#e9c73f] text-[#00236A]"
-                            onClick={() => setSelectedCategoryIndex(index)}
-                          >
-                            <List size={16} className="mr-1" /> Questions
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-400 hover:text-red-300 hover:bg-red-900/30"
-                            onClick={() => handleRemoveCategory(index)}
-                            disabled={categories.length <= 1}
-                          >
-                            <Trash2 size={16} />
-                          </Button>
-                        </div>
-                      ))}
-
-                      <Button
-                        size="sm"
-                        className="w-full bg-green-600 hover:bg-green-700 text-white mt-2"
-                        onClick={handleAddCategory}
-                      >
-                        <Plus size={16} className="mr-1" /> Add Category
-                      </Button>
-
-                      {/* Final Jeopardy Section */}
-                      {finalJeopardy && (
-                        <div className="mt-4 pt-4 border-t border-[#005AF2]">
-                          <h4 className="text-[#f8d64e] font-semibold mb-2">Final Jeopardy</h4>
-                          <div className="space-y-2 bg-[#00236A] p-3 rounded-lg">
-                            <Input
-                              value={finalJeopardy.category}
-                              onChange={(e) => handleFinalJeopardyChange("category", e.target.value)}
-                              className="bg-[#005AF2] border-[#005AF2] text-white"
-                              placeholder="Category"
-                            />
-                            <textarea
-                              value={finalJeopardy.question}
-                              onChange={(e) => handleFinalJeopardyChange("question", e.target.value)}
-                              className="w-full p-2 bg-[#005AF2] border-[#005AF2] text-white rounded-lg text-sm"
-                              placeholder="Question"
-                              rows={2}
-                            />
-                            <textarea
-                              value={finalJeopardy.answer}
-                              onChange={(e) => handleFinalJeopardyChange("answer", e.target.value)}
-                              className="w-full p-2 bg-[#005AF2] border-[#005AF2] text-white rounded-lg text-sm"
-                              placeholder="Answer"
-                              rows={2}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* Questions View for Selected Category */
-                    <div className="space-y-3">
-                      <h4 className="text-[#f8d64e] font-semibold">
-                        {categories[selectedCategoryIndex]?.category} - Questions
-                      </h4>
-                      {categories[selectedCategoryIndex]?.questions.map((question, qIndex) => (
-                        <div key={qIndex} className="bg-[#00236A] p-3 rounded-lg space-y-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-white text-sm font-medium">$</span>
-                            <Input
-                              type="number"
-                              value={question.value}
-                              onChange={(e) => handleQuestionChange(qIndex, "value", e.target.value)}
-                              className="w-20 bg-[#005AF2] border-[#005AF2] text-white text-sm"
-                            />
-                            <label className="flex items-center ml-auto cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={question.isDailyDouble || false}
-                                onChange={(e) => handleQuestionChange(qIndex, "isDailyDouble", e.target.checked)}
-                                className="mr-1 h-3 w-3"
-                              />
-                              <span className="text-[#f8d64e] text-xs">Daily Double</span>
-                            </label>
-                          </div>
-                          <textarea
-                            value={question.question}
-                            onChange={(e) => handleQuestionChange(qIndex, "question", e.target.value)}
-                            className="w-full p-2 bg-[#005AF2] border-[#005AF2] text-white rounded-lg text-sm"
-                            placeholder="Question"
-                            rows={2}
-                          />
-                          <textarea
-                            value={question.answer}
-                            onChange={(e) => handleQuestionChange(qIndex, "answer", e.target.value)}
-                            className="w-full p-2 bg-[#005AF2] border-[#005AF2] text-white rounded-lg text-sm"
-                            placeholder="Answer"
-                            rows={1}
-                          />
-                          <div className="flex items-center gap-2">
-                            <LinkIcon size={14} className="text-gray-400" />
-                            <Input
-                              value={question.imageUrl || ""}
-                              onChange={(e) => handleQuestionChange(qIndex, "imageUrl", e.target.value)}
-                              className="flex-1 bg-[#005AF2] border-[#005AF2] text-white text-sm"
-                              placeholder="Image URL (optional)"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Save Button */}
-                  <div className="pt-2 border-t border-[#005AF2]">
-                    <Button
-                      className="w-full bg-[#f8d64e] hover:bg-[#e9c73f] text-[#00236A] font-bold"
-                      onClick={handleSaveCategories}
-                      disabled={isSaving}
-                    >
-                      <Save size={16} className="mr-2" /> Save All Changes
-                    </Button>
-                    {editorSaveMessage && (
-                      <p className={`text-center text-sm mt-2 ${editorSaveMessage.includes("success") ? "text-green-400" : "text-red-400"}`}>
-                        {editorSaveMessage}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
+              <Link href="/editor" className="block">
+                <Button className="w-full bg-[#005AF2] hover:bg-[#0046c9] text-white">
+                  <FileEdit size={18} className="mr-2" /> Edit Questions & Categories
+                </Button>
+              </Link>
 
               <Button
                 className="w-full bg-red-600 hover:bg-red-700 text-white"
